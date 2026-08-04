@@ -21,14 +21,26 @@ func New(addr string, allowedOrigins []string, application *app.Application, aut
 	r.Use(cors.Handler(cors.Options{
 		AllowedOrigins: allowedOrigins,
 		AllowedMethods: []string{"GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"},
-		AllowedHeaders: []string{"Accept", "Authorization", "Content-Type"},
+		AllowedHeaders: []string{"Accept", "Authorization", "Content-Type", "X-Trace-ID"},
 		MaxAge:         300,
 	}))
 	r.Use(middleware.RequestID)
 	r.Use(middleware.Logger(slog.Default()))
 	r.Use(chimiddleware.Recoverer)
-
-	registerRoutes(r, application, authMiddleware)
+	r.Use(middleware.StripAPIPrefix("/api/write"))
+	r.Group(func(r chi.Router) {
+		r.Use(middleware.Tracing(application.Tracer))
+		registerRoutes(r, application, authMiddleware)
+	})
+	// r.Mount("/rube", rube.Routes(application.RubeOwidNextURL, application.Tracer))
+	// r.Mount("/pubsub", demo.Routes(
+	// 	application.AccountStore,
+	// 	application.BillStore,
+	// 	application.CategoryStore,
+	// 	application.TransactionStore,
+	// 	application.Tracer,
+	// 	application.PubSubAudience,
+	// ))
 
 	return &Server{
 		HTTPServer: &http.Server{
