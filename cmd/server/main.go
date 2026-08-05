@@ -10,13 +10,13 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/Strangebrewer/go-service-template/app"
-	"github.com/Strangebrewer/go-service-template/config"
-	"github.com/Strangebrewer/go-service-template/db_connection"
-	"github.com/Strangebrewer/go-service-template/example"
-	"github.com/Strangebrewer/go-service-template/middleware"
-	"github.com/Strangebrewer/go-service-template/server"
-	"github.com/Strangebrewer/go-service-template/tracer"
+	"github.com/Strangebrewer/go-writer/app"
+	"github.com/Strangebrewer/go-writer/config"
+	"github.com/Strangebrewer/go-writer/db_connection"
+	"github.com/Strangebrewer/go-writer/example"
+	"github.com/Strangebrewer/go-writer/middleware"
+	"github.com/Strangebrewer/go-writer/server"
+	"github.com/Strangebrewer/go-writer/tracer"
 )
 
 func main() {
@@ -40,7 +40,7 @@ func main() {
 
 	var tracerClient *tracer.Client
 	if cfg.TracerURL != "" && cfg.TracerServiceKey != "" {
-		tracerClient = tracer.NewClient(cfg.TracerURL, cfg.TracerServiceKey, "go-service-template")
+		tracerClient = tracer.NewClient(cfg.TracerURL, cfg.TracerServiceKey, "go-writer")
 	}
 
 	application := &app.Application{

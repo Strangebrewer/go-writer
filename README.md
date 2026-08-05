@@ -1,4 +1,4 @@
-# go-service-template
+# go-writer
 
 A GitHub template repository for Go REST services. Built as part of a larger portfolio project to establish consistent patterns across a multi-service architecture — and to deepen Go experience along the way.
 

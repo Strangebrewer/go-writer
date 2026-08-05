@@ -6,7 +6,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/Strangebrewer/go-write/tracer"
+	"github.com/Strangebrewer/go-writer/tracer"
 	"github.com/go-chi/chi/v5"
 )
 

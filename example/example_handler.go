@@ -7,8 +7,8 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/Strangebrewer/go-service-template/middleware"
-	"github.com/Strangebrewer/go-service-template/tracer"
+	"github.com/Strangebrewer/go-writer/middleware"
+	"github.com/Strangebrewer/go-writer/tracer"
 	"github.com/go-chi/chi/v5"
 )
 

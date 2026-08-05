@@ -1,7 +1,7 @@
 package example
 
 import (
-	"github.com/Strangebrewer/go-service-template/tracer"
+	"github.com/Strangebrewer/go-writer/tracer"
 	"github.com/go-chi/chi/v5"
 )
 

@@ -3,9 +3,9 @@ package server
 import (
 	"net/http"
 
-	"github.com/Strangebrewer/go-write/app"
-	"github.com/Strangebrewer/go-write/example"
-	"github.com/Strangebrewer/go-write/health"
+	"github.com/Strangebrewer/go-writer/app"
+	"github.com/Strangebrewer/go-writer/example"
+	"github.com/Strangebrewer/go-writer/health"
 	"github.com/go-chi/chi/v5"
 )
 

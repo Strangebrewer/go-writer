@@ -1,8 +1,8 @@
 package app
 
 import (
-	"github.com/Strangebrewer/go-service-template/example"
-	"github.com/Strangebrewer/go-service-template/tracer"
+	"github.com/Strangebrewer/go-writer/example"
+	"github.com/Strangebrewer/go-writer/tracer"
 )
 
 type Application struct {

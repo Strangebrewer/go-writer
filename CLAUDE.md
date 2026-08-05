@@ -1,4 +1,4 @@
-# go-write — Claude Context
+# go-writer — Claude Context
 
 ## What This Service Is
 
@@ -57,7 +57,7 @@ Position within a parent is tracked with an **`order` field on the child documen
 - `Text.order` — position within its `subjectId`
 - `Subject.order` — position within its `projectId` — identical mechanism, one level up
 
-**Why not an id-array on the parent:** the child already carries its parent's id as a foreign key (`Text.subjectId`, `Subject.projectId`) for scoping and authorization queries. An id-array on the parent would record that same membership fact a second time. Moving a child to a new parent would then require writing the child's foreign key *and* removing/inserting its id in two separate parent documents — three writes with no atomicity between them, and a real risk of the array and the foreign key disagreeing if one write fails. Keeping `order` on the child means every reorder or move is a single-document write.
+**Why not an id-array on the parent:** the child already carries its parent's id as a foreign key (`Text.subjectId`, `Subject.projectId`) for scoping and authorization queries. An id-array on the parent would record that same membership fact a second time. Moving a child to a new parent would then require writing the child's foreign key _and_ removing/inserting its id in two separate parent documents — three writes with no atomicity between them, and a real risk of the array and the foreign key disagreeing if one write fails. Keeping `order` on the child means every reorder or move is a single-document write.
 
 **Values are plain integers, not floats.** No midpoint averaging.
 
@@ -112,14 +112,14 @@ Same four-file pattern as other services: `<domain>_model.go`, `_store.go`, `_ha
 
 ## Environment Variables
 
-| Variable             | Description                                                   |
-| --------------------- | -------------------------------------------------------------- |
-| `PORT`                | HTTP port (defaults to 8080)                                   |
-| `DATABASE_URL`        | MongoDB URI (`mongodb+srv://user:pass@cluster.mongodb.net/`)   |
-| `JWT_PUBLIC_KEY`      | RSA public key PEM for validating JWTs issued by go-auth       |
-| `ALLOWED_ORIGINS`     | Comma-separated list of allowed CORS origins                   |
-| `TRACER_SERVICE_URL`  | go-tracer base URL                                              |
-| `TRACER_SERVICE_KEY`  | Auth key for `POST /spans` on go-tracer                        |
+| Variable             | Description                                                  |
+| -------------------- | ------------------------------------------------------------ |
+| `PORT`               | HTTP port (defaults to 8080)                                 |
+| `DATABASE_URL`       | MongoDB URI (`mongodb+srv://user:pass@cluster.mongodb.net/`) |
+| `JWT_PUBLIC_KEY`     | RSA public key PEM for validating JWTs issued by go-auth     |
+| `ALLOWED_ORIGINS`    | Comma-separated list of allowed CORS origins                 |
+| `TRACER_SERVICE_URL` | go-tracer base URL                                           |
+| `TRACER_SERVICE_KEY` | Auth key for `POST /spans` on go-tracer                      |
 
 Copy `.env.example` to `.env.local` for local dev. Never commit `.env.local`.
 
