@@ -13,9 +13,11 @@ import (
 	"github.com/Strangebrewer/go-writer/app"
 	"github.com/Strangebrewer/go-writer/config"
 	"github.com/Strangebrewer/go-writer/db_connection"
-	"github.com/Strangebrewer/go-writer/example"
 	"github.com/Strangebrewer/go-writer/middleware"
+	"github.com/Strangebrewer/go-writer/project"
 	"github.com/Strangebrewer/go-writer/server"
+	"github.com/Strangebrewer/go-writer/subject"
+	"github.com/Strangebrewer/go-writer/text"
 	"github.com/Strangebrewer/go-writer/tracer"
 )
 
@@ -25,12 +27,17 @@ func main() {
 
 	cfg := config.Load()
 
-	pool, err := db_connection.NewPool(cfg.DatabaseURL)
+	ctx := context.Background()
+	client, db, err := db_connection.Connect(ctx, cfg.DatabaseURL, cfg.DBName)
 	if err != nil {
 		slog.Error("failed to connect to database", "error", err)
 		os.Exit(1)
 	}
-	defer pool.Close()
+	defer func() {
+		if err := client.Disconnect(context.Background()); err != nil {
+			slog.Error("failed to disconnect from database", "error", err)
+		}
+	}()
 
 	authMiddleware, err := middleware.RequireAuth(cfg.JWTPublicKey)
 	if err != nil {
@@ -44,7 +51,9 @@ func main() {
 	}
 
 	application := &app.Application{
-		ExampleStore: example.NewStore(pool),
+		ProjectStore: project.NewStore(db),
+		SubjectStore: subject.NewStore(db),
+		TextStore:    text.NewStore(db),
 		Tracer:       tracerClient,
 	}
 

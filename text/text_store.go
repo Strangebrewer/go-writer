@@ -6,10 +6,11 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/Strangebrewer/go-writer/utils/dumbwaiter"
 	"github.com/google/uuid"
-	"go.mongodb.org/mongo-driver/mongo"
-	"go.mongodb.org/mongo-driver/mongo/options"
 	"go.mongodb.org/mongo-driver/v2/bson"
+	"go.mongodb.org/mongo-driver/v2/mongo"
+	"go.mongodb.org/mongo-driver/v2/mongo/options"
 )
 
 var ErrNotFound = errors.New("text not found")
@@ -50,27 +51,11 @@ func NewStore(db *mongo.Database) *Store {
 	}
 }
 
-func (s *Store) GetAllByProject(ctx context.Context, projectID uuid.UUID) ([]Text, error) {
-	cursor, err := s.col.Find(ctx, bson.D{{Key: "projectId", Value: projectID.String()}})
-	if err != nil {
-		return nil, fmt.Errorf("get texts by projectId: %w", err)
-	}
-	defer cursor.Close(ctx)
-
-	var docs []textDoc
-	if err := cursor.All(ctx, &docs); err != nil {
-		return nil, fmt.Errorf("decode texts: %w", err)
-	}
-
-	texts := make([]Text, len(docs))
-	for i, d := range docs {
-		texts[i] = d.toDomain()
-	}
-	return texts, nil
-}
-
 func (s *Store) GetAllBySubject(ctx context.Context, userID, subjectID uuid.UUID) ([]Text, error) {
-	cursor, err := s.col.Find(ctx, bson.D{{Key: "subjectId", Value: subjectID.String()}})
+	cursor, err := s.col.Find(ctx, bson.D{
+		{Key: "subjectId", Value: subjectID.String()},
+		{Key: "userId", Value: userID.String()},
+	})
 	if err != nil {
 		return nil, fmt.Errorf("get texts by subjectId: %w", err)
 	}
@@ -88,7 +73,7 @@ func (s *Store) GetAllBySubject(ctx context.Context, userID, subjectID uuid.UUID
 	return texts, nil
 }
 
-func (s *Store) GetByID(ctx context.Context, id uuid.UUID) (Text, error) {
+func (s *Store) GetByID(ctx context.Context, id, userId uuid.UUID) (Text, error) {
 	var doc textDoc
 	err := s.col.FindOne(ctx, bson.D{{Key: "_id", Value: id.String()}}).Decode(&doc)
 	if err != nil {
@@ -101,7 +86,7 @@ func (s *Store) GetByID(ctx context.Context, id uuid.UUID) (Text, error) {
 }
 
 func (s *Store) Create(ctx context.Context, userID uuid.UUID, req CreateTextRequest, expiresAt *time.Time) (Text, error) {
-	id, err := newID()
+	id, err := dumbwaiter.NewID()
 	if err != nil {
 		return Text{}, fmt.Errorf("generate id: %w", err)
 	}
@@ -113,6 +98,8 @@ func (s *Store) Create(ctx context.Context, userID uuid.UUID, req CreateTextRequ
 		Title:       req.Title,
 		Description: req.Description,
 		Content:     req.Content,
+		SubjectID:   req.SubjectID,
+		ProjectID:   req.ProjectID,
 		CreatedAt:   now,
 		UpdatedAt:   now,
 		ExpiresAt:   expiresAt,

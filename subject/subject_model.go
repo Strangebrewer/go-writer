@@ -1,32 +1,33 @@
-package text
+package subject
 
 import (
 	"time"
+
+	"github.com/Strangebrewer/go-writer/text"
 )
 
-type Text struct {
+type Subject struct {
 	ID          string     `json:"id"`
 	UserID      string     `json:"userId"`
 	Title       string     `json:"title"`
 	Description string     `json:"description"`
-	Content     string     `json:"content"`
-	SubjectID   string     `json:"subjectId"`
 	ProjectID   string     `json:"projectId"`
 	ExpiresAt   *time.Time `json:"expiresAt,omitempty"`
 }
 
-type CreateTextRequest struct {
+type SubjectResponse struct {
+	Subject
+	Texts []text.Text `json:"texts"`
+}
+
+type CreateSubjectRequest struct {
 	Title       string `json:"title"`
 	Description string `json:"description"`
-	Content     string `json:"content"`
-	SubjectID   string `json:"subjectId"`
 	ProjectID   string `json:"projectId"`
 }
 
-type UpdateTextRequest struct {
+type UpdateSubjectRequest struct {
 	Title       *string `json:"title"`
 	Description *string `json:"description"`
-	Content     *string `json:"content"`
-	SubjectID   *string `json:"subjectId"`
 	ProjectID   *string `json:"projectId"`
 }

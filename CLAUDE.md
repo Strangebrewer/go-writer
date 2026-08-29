@@ -44,9 +44,18 @@ tracer/              ← tracer client, same pattern as other Go services
 
 ## Domain Hierarchy
 
-Fixed three levels: **Project → Subject → Text**. No arbitrary or self-referential nesting (e.g. a Subject cannot have a parent Subject). A case that seems to need a fourth level — a series of books, say — is modeled as separate Projects instead. This keeps drag-and-drop reordering bounded to two known operations (reorder-within-parent, move-between-parents) at every level, rather than needing to support recursive tree manipulation.
+Fixed three levels: **Project → Subject → Text**. No arbitrary or self-referential nesting (e.g. a Subject cannot have a parent Subject). A case that seems to need a fourth level — a series of books, say — is modeled as separate Projects instead. This keeps drag-and-drop reordering bounded to known operations rather than needing to support recursive tree manipulation.
 
 The frontend renders a Project as a board: Subjects are columns, Texts are cards.
+
+### Moves are text-level only
+
+A Text can move to a different Subject **within the same Project**. That is the only move operation in the domain:
+
+- A Subject never moves to a different Project — Subjects only reorder within their own Project.
+- A Text never moves to a different Project.
+
+So `projectId` is immutable on both `Subject` and `Text` once set. The project delete cascade depends on this: it matches subjects and texts on `projectId` directly, which is only safe because that field can never drift from the document's actual parent.
 
 ---
 
@@ -57,7 +66,7 @@ Position within a parent is tracked with an **`order` field on the child documen
 - `Text.order` — position within its `subjectId`
 - `Subject.order` — position within its `projectId` — identical mechanism, one level up
 
-**Why not an id-array on the parent:** the child already carries its parent's id as a foreign key (`Text.subjectId`, `Subject.projectId`) for scoping and authorization queries. An id-array on the parent would record that same membership fact a second time. Moving a child to a new parent would then require writing the child's foreign key _and_ removing/inserting its id in two separate parent documents — three writes with no atomicity between them, and a real risk of the array and the foreign key disagreeing if one write fails. Keeping `order` on the child means every reorder or move is a single-document write.
+**Why not an id-array on the parent:** the child already carries its parent's id as a foreign key (`Text.subjectId`, `Subject.projectId`) for scoping and authorization queries. An id-array on the parent would record that same membership fact a second time. Moving a text to a new subject would then require writing the text's `subjectId` _and_ removing/inserting its id in two separate subject documents — three writes with no atomicity between them, and a real risk of the array and the foreign key disagreeing if one write fails. Keeping `order` on the child means every reorder or move is a single-document write.
 
 **Values are plain integers, not floats.** No midpoint averaging.
 
