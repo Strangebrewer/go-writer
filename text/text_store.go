@@ -144,5 +144,5 @@ func (s *Store) Update(ctx context.Context, id, userID uuid.UUID, req UpdateText
 }
 
 func (s *Store) Delete(ctx context.Context, id, userID uuid.UUID) {
-	// needs access to the subject to remove the id from textOrder
+
 }

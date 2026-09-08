@@ -10,6 +10,9 @@ func Routes(store *Store, tc *tracer.Client) chi.Router {
 	h := NewHandler(store)
 
 	r.Get("/{id}", h.GetOne)
+	r.Post("/", h.Create)
+	r.Put("/{id}", h.Update)
+	r.Delete("/{id}", h.Delete)
 
 	return r
 }

@@ -46,3 +46,15 @@ func (h *Handler) GetOne(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 	_ = json.NewEncoder(w).Encode(text)
 }
+
+func (h *Handler) Create(w http.ResponseWriter, r *http.Request) {
+
+}
+
+func (h *Handler) Update(w http.ResponseWriter, r *http.Request) {
+
+}
+
+func (h *Handler) Delete(w http.ResponseWriter, r *http.Request) {
+
+}

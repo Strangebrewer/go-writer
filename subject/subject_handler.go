@@ -105,3 +105,11 @@ func (h *Handler) Create(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusCreated)
 	_ = json.NewEncoder(w).Encode(created)
 }
+
+func (h *Handler) Update(w http.ResponseWriter, r *http.Request) {
+
+}
+
+func (h *Handler) Delete(w http.ResponseWriter, r *http.Request) {
+
+}

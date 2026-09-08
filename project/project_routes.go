@@ -10,9 +10,9 @@ func Routes(store *Store, subjectStore *subject.Store, tc *tracer.Client) chi.Ro
 	r := chi.NewRouter()
 	h := NewHandler(store, subjectStore)
 
-	r.Get("/", h.GetAll)
+	r.Get("/", h.GetAll) // does not fetch subjects
 	r.Post("/", h.Create)
-	r.Get("/{id}", h.GetOne)
+	r.Get("/{id}", h.GetOne) // fetches subjects
 	r.Put("/{id}", h.Update)
 	r.Delete("/{id}", h.Delete)
 

@@ -21,6 +21,7 @@ type projectDoc struct {
 	UserID      string     `bson:"userId"`
 	Title       string     `bson:"title"`
 	Description string     `bson:"description"`
+	SortOrder   int        `bson:"sortOrder"`
 	ExpiresAt   *time.Time `bson:"expiresAt,omitempty"`
 	CreatedAt   time.Time  `bson:"createdAt"`
 	UpdatedAt   time.Time  `bson:"updatedAt"`
@@ -32,6 +33,7 @@ func (d projectDoc) toDomain() Project {
 		UserID:      d.UserID,
 		Title:       d.Title,
 		Description: d.Description,
+		SortOrder:   d.SortOrder,
 		ExpiresAt:   d.ExpiresAt,
 	}
 }
@@ -97,6 +99,7 @@ func (s *Store) Create(ctx context.Context, userId uuid.UUID, req CreateProjectR
 		UserID:      userId.String(),
 		Title:       req.Title,
 		Description: req.Description,
+		SortOrder:   req.SortOrder,
 		ExpiresAt:   expiresAt,
 		CreatedAt:   now,
 		UpdatedAt:   now,
@@ -121,6 +124,9 @@ func (s *Store) Update(ctx context.Context, id, userID uuid.UUID, req UpdateProj
 	}
 	if req.Description != nil {
 		update = append(update, bson.E{Key: "description", Value: req.Description})
+	}
+	if req.SortOrder != nil {
+		update = append(update, bson.E{Key: "sortOrder", Value: req.SortOrder})
 	}
 
 	var doc projectDoc
