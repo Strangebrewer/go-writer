@@ -1,14 +1,13 @@
-package project
+package writer
 
 import (
-	"github.com/Strangebrewer/go-writer/subject"
 	"github.com/Strangebrewer/go-writer/tracer"
 	"github.com/go-chi/chi/v5"
 )
 
-func Routes(store *Store, subjectStore *subject.Store, tc *tracer.Client) chi.Router {
+func ProjectRoutes(projectStore *ProjectStore, subjectStore *SubjectStore, tc *tracer.Client) chi.Router {
 	r := chi.NewRouter()
-	h := NewHandler(store, subjectStore)
+	h := NewProjectHandler(projectStore, subjectStore)
 
 	r.Get("/", h.GetAll) // does not fetch subjects
 	r.Post("/", h.Create)

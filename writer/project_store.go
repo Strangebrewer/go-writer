@@ -1,4 +1,4 @@
-package project
+package writer
 
 import (
 	"context"
@@ -14,7 +14,7 @@ import (
 	"go.mongodb.org/mongo-driver/v2/mongo/options"
 )
 
-var ErrNotFound = errors.New("project not found")
+var ErrProjectNotFound = errors.New("project not found")
 
 type projectDoc struct {
 	ID          string     `bson:"_id"`
@@ -38,21 +38,21 @@ func (d projectDoc) toDomain() Project {
 	}
 }
 
-type Store struct {
+type ProjectStore struct {
 	col      *mongo.Collection
 	subjects *mongo.Collection
 	texts    *mongo.Collection
 }
 
-func NewStore(db *mongo.Database) *Store {
-	return &Store{
+func NewProjectStore(db *mongo.Database) *ProjectStore {
+	return &ProjectStore{
 		col:      db.Collection("projects"),
 		subjects: db.Collection("subjects"),
 		texts:    db.Collection("texts"),
 	}
 }
 
-func (s *Store) GetAll(ctx context.Context, userID uuid.UUID) ([]Project, error) {
+func (s *ProjectStore) GetAll(ctx context.Context, userID uuid.UUID) ([]Project, error) {
 	cursor, err := s.col.Find(ctx, bson.D{{Key: "userId", Value: userID.String()}})
 	if err != nil {
 		return nil, fmt.Errorf("get all projects: %w", err)
@@ -72,7 +72,7 @@ func (s *Store) GetAll(ctx context.Context, userID uuid.UUID) ([]Project, error)
 	return projects, nil
 }
 
-func (s *Store) GetByID(ctx context.Context, id, userID uuid.UUID) (Project, error) {
+func (s *ProjectStore) GetByID(ctx context.Context, id, userID uuid.UUID) (Project, error) {
 	var doc projectDoc
 	err := s.col.FindOne(ctx, bson.D{
 		{Key: "_id", Value: id.String()},
@@ -80,14 +80,14 @@ func (s *Store) GetByID(ctx context.Context, id, userID uuid.UUID) (Project, err
 	}).Decode(&doc)
 	if err != nil {
 		if errors.Is(err, mongo.ErrNoDocuments) {
-			return Project{}, ErrNotFound
+			return Project{}, ErrProjectNotFound
 		}
 		return Project{}, fmt.Errorf("get project: %w", err)
 	}
 	return doc.toDomain(), nil
 }
 
-func (s *Store) Create(ctx context.Context, userId uuid.UUID, req CreateProjectRequest, expiresAt *time.Time) (Project, error) {
+func (s *ProjectStore) Create(ctx context.Context, userId uuid.UUID, req CreateProjectRequest, expiresAt *time.Time) (Project, error) {
 	id, err := dumbwaiter.NewID()
 	if err != nil {
 		return Project{}, fmt.Errorf("generate id: %w", err)
@@ -112,7 +112,7 @@ func (s *Store) Create(ctx context.Context, userId uuid.UUID, req CreateProjectR
 	return doc.toDomain(), nil
 }
 
-func (s *Store) Update(ctx context.Context, id, userID uuid.UUID, req UpdateProjectRequest) (Project, error) {
+func (s *ProjectStore) Update(ctx context.Context, id, userID uuid.UUID, req UpdateProjectRequest) (Project, error) {
 	filter := bson.D{
 		{Key: "_id", Value: id.String()},
 		{Key: "userId", Value: userID.String()},
@@ -135,7 +135,7 @@ func (s *Store) Update(ctx context.Context, id, userID uuid.UUID, req UpdateProj
 	).Decode(&doc)
 	if err != nil {
 		if errors.Is(err, mongo.ErrNoDocuments) {
-			return Project{}, ErrNotFound
+			return Project{}, ErrProjectNotFound
 		}
 		return Project{}, fmt.Errorf("update project: %w", err)
 	}
@@ -143,7 +143,7 @@ func (s *Store) Update(ctx context.Context, id, userID uuid.UUID, req UpdateProj
 	return doc.toDomain(), nil
 }
 
-func (s *Store) Delete(ctx context.Context, id, userID uuid.UUID) error {
+func (s *ProjectStore) Delete(ctx context.Context, id, userID uuid.UUID) error {
 	_, err := s.texts.DeleteMany(ctx, bson.D{
 		{Key: "projectId", Value: id.String()},
 		{Key: "userId", Value: userID.String()},
@@ -168,7 +168,7 @@ func (s *Store) Delete(ctx context.Context, id, userID uuid.UUID) error {
 		return fmt.Errorf("delete project: %w", err)
 	}
 	if result.DeletedCount == 0 {
-		return ErrNotFound
+		return ErrProjectNotFound
 	}
 
 	return nil

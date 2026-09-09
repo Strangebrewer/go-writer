@@ -1,4 +1,4 @@
-package text
+package writer
 
 import (
 	"encoding/json"
@@ -11,15 +11,15 @@ import (
 	"github.com/google/uuid"
 )
 
-type Handler struct {
-	store *Store
+type TextHandler struct {
+	textStore *TextStore
 }
 
-func NewHandler(store *Store) *Handler {
-	return &Handler{store: store}
+func NewTextHandler(textStore *TextStore) *TextHandler {
+	return &TextHandler{textStore: textStore}
 }
 
-func (h *Handler) GetOne(w http.ResponseWriter, r *http.Request) {
+func (h *TextHandler) GetOne(w http.ResponseWriter, r *http.Request) {
 	userId, err := extraction.UserIDFromRequest(r)
 	if err != nil {
 		http.Error(w, "unauthorized", http.StatusUnauthorized)
@@ -32,9 +32,9 @@ func (h *Handler) GetOne(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	text, err := h.store.GetByID(r.Context(), id, userId)
+	text, err := h.textStore.GetByID(r.Context(), id, userId)
 	if err != nil {
-		if errors.Is(err, ErrNotFound) {
+		if errors.Is(err, ErrTextNotFound) {
 			http.Error(w, "not found", http.StatusNotFound)
 			return
 		}
@@ -47,14 +47,14 @@ func (h *Handler) GetOne(w http.ResponseWriter, r *http.Request) {
 	_ = json.NewEncoder(w).Encode(text)
 }
 
-func (h *Handler) Create(w http.ResponseWriter, r *http.Request) {
+func (h *TextHandler) Create(w http.ResponseWriter, r *http.Request) {
 
 }
 
-func (h *Handler) Update(w http.ResponseWriter, r *http.Request) {
+func (h *TextHandler) Update(w http.ResponseWriter, r *http.Request) {
 
 }
 
-func (h *Handler) Delete(w http.ResponseWriter, r *http.Request) {
+func (h *TextHandler) Delete(w http.ResponseWriter, r *http.Request) {
 
 }

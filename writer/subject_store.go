@@ -1,4 +1,4 @@
-package subject
+package writer
 
 import (
 	"context"
@@ -13,7 +13,7 @@ import (
 	"go.mongodb.org/mongo-driver/v2/mongo"
 )
 
-var ErrNotFound = errors.New("subject not found")
+var ErrSubjectNotFound = errors.New("subject not found")
 
 type subjectDoc struct {
 	ID          string     `bson:"_id"`
@@ -37,17 +37,17 @@ func (d subjectDoc) toDomain() Subject {
 	}
 }
 
-type Store struct {
+type SubjectStore struct {
 	col *mongo.Collection
 }
 
-func NewStore(db *mongo.Database) *Store {
-	return &Store{
+func NewSubjectStore(db *mongo.Database) *SubjectStore {
+	return &SubjectStore{
 		col: db.Collection("subjects"),
 	}
 }
 
-func (s *Store) GetAllByProject(ctx context.Context, userID, projectID uuid.UUID) ([]Subject, error) {
+func (s *SubjectStore) GetAllByProject(ctx context.Context, userID, projectID uuid.UUID) ([]Subject, error) {
 	cursor, err := s.col.Find(ctx, bson.D{
 		{Key: "projectId", Value: projectID.String()},
 		{Key: "userId", Value: userID.String()},
@@ -70,19 +70,19 @@ func (s *Store) GetAllByProject(ctx context.Context, userID, projectID uuid.UUID
 	return subjects, nil
 }
 
-func (s *Store) GetByID(ctx context.Context, id, userId uuid.UUID) (Subject, error) {
+func (s *SubjectStore) GetByID(ctx context.Context, id, userId uuid.UUID) (Subject, error) {
 	var doc subjectDoc
 	err := s.col.FindOne(ctx, bson.D{{Key: "_id", Value: id.String()}}).Decode(&doc)
 	if err != nil {
 		if errors.Is(err, mongo.ErrNoDocuments) {
-			return Subject{}, ErrNotFound
+			return Subject{}, ErrSubjectNotFound
 		}
 		return Subject{}, fmt.Errorf("get subject: %w", err)
 	}
 	return doc.toDomain(), nil
 }
 
-func (s *Store) Create(ctx context.Context, userId uuid.UUID, req CreateSubjectRequest, expiresAt *time.Time) (Subject, error) {
+func (s *SubjectStore) Create(ctx context.Context, userId uuid.UUID, req CreateSubjectRequest, expiresAt *time.Time) (Subject, error) {
 	id, err := dumbwaiter.NewID()
 	if err != nil {
 		return Subject{}, fmt.Errorf("generate id: %w", err)

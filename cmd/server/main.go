@@ -14,11 +14,9 @@ import (
 	"github.com/Strangebrewer/go-writer/config"
 	"github.com/Strangebrewer/go-writer/db_connection"
 	"github.com/Strangebrewer/go-writer/middleware"
-	"github.com/Strangebrewer/go-writer/project"
 	"github.com/Strangebrewer/go-writer/server"
-	"github.com/Strangebrewer/go-writer/subject"
-	"github.com/Strangebrewer/go-writer/text"
 	"github.com/Strangebrewer/go-writer/tracer"
+	"github.com/Strangebrewer/go-writer/writer"
 )
 
 func main() {
@@ -51,9 +49,9 @@ func main() {
 	}
 
 	application := &app.Application{
-		ProjectStore: project.NewStore(db),
-		SubjectStore: subject.NewStore(db),
-		TextStore:    text.NewStore(db),
+		ProjectStore: writer.NewProjectStore(db),
+		SubjectStore: writer.NewSubjectStore(db),
+		TextStore:    writer.NewTextStore(db),
 		Tracer:       tracerClient,
 	}
 

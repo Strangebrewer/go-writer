@@ -1,13 +1,13 @@
-package text
+package writer
 
 import (
 	"github.com/Strangebrewer/go-writer/tracer"
 	"github.com/go-chi/chi/v5"
 )
 
-func Routes(store *Store, tc *tracer.Client) chi.Router {
+func TextRoutes(textStore *TextStore, tc *tracer.Client) chi.Router {
 	r := chi.NewRouter()
-	h := NewHandler(store)
+	h := NewTextHandler(textStore)
 
 	r.Get("/{id}", h.GetOne)
 	r.Post("/", h.Create)

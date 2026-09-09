@@ -1,4 +1,4 @@
-package text
+package writer
 
 import (
 	"context"
@@ -13,7 +13,7 @@ import (
 	"go.mongodb.org/mongo-driver/v2/mongo/options"
 )
 
-var ErrNotFound = errors.New("text not found")
+var ErrTextNotFound = errors.New("text not found")
 
 type textDoc struct {
 	ID          string     `bson:"_id"`
@@ -41,17 +41,17 @@ func (d textDoc) toDomain() Text {
 	}
 }
 
-type Store struct {
+type TextStore struct {
 	col *mongo.Collection
 }
 
-func NewStore(db *mongo.Database) *Store {
-	return &Store{
+func NewTextStore(db *mongo.Database) *TextStore {
+	return &TextStore{
 		col: db.Collection("texts"),
 	}
 }
 
-func (s *Store) GetAllBySubject(ctx context.Context, userID, subjectID uuid.UUID) ([]Text, error) {
+func (s *TextStore) GetAllBySubject(ctx context.Context, userID, subjectID uuid.UUID) ([]Text, error) {
 	cursor, err := s.col.Find(ctx, bson.D{
 		{Key: "subjectId", Value: subjectID.String()},
 		{Key: "userId", Value: userID.String()},
@@ -73,19 +73,19 @@ func (s *Store) GetAllBySubject(ctx context.Context, userID, subjectID uuid.UUID
 	return texts, nil
 }
 
-func (s *Store) GetByID(ctx context.Context, id, userId uuid.UUID) (Text, error) {
+func (s *TextStore) GetByID(ctx context.Context, id, userId uuid.UUID) (Text, error) {
 	var doc textDoc
 	err := s.col.FindOne(ctx, bson.D{{Key: "_id", Value: id.String()}}).Decode(&doc)
 	if err != nil {
 		if errors.Is(err, mongo.ErrNoDocuments) {
-			return Text{}, ErrNotFound
+			return Text{}, ErrTextNotFound
 		}
 		return Text{}, fmt.Errorf("get text: %w", err)
 	}
 	return doc.toDomain(), nil
 }
 
-func (s *Store) Create(ctx context.Context, userID uuid.UUID, req CreateTextRequest, expiresAt *time.Time) (Text, error) {
+func (s *TextStore) Create(ctx context.Context, userID uuid.UUID, req CreateTextRequest, expiresAt *time.Time) (Text, error) {
 	id, err := dumbwaiter.NewID()
 	if err != nil {
 		return Text{}, fmt.Errorf("generate id: %w", err)
@@ -111,7 +111,7 @@ func (s *Store) Create(ctx context.Context, userID uuid.UUID, req CreateTextRequ
 	return doc.toDomain(), nil
 }
 
-func (s *Store) Update(ctx context.Context, id, userID uuid.UUID, req UpdateTextRequest) (Text, error) {
+func (s *TextStore) Update(ctx context.Context, id, userID uuid.UUID, req UpdateTextRequest) (Text, error) {
 	filter := bson.D{{Key: "_id", Value: id.String()}, {Key: "userId", Value: userID.String()}}
 	update := bson.D{{Key: "updatedAt", Value: time.Now().UTC()}}
 	if req.Title != nil {
@@ -136,13 +136,13 @@ func (s *Store) Update(ctx context.Context, id, userID uuid.UUID, req UpdateText
 	).Decode(&doc)
 	if err != nil {
 		if errors.Is(err, mongo.ErrNoDocuments) {
-			return Text{}, ErrNotFound
+			return Text{}, ErrTextNotFound
 		}
 		return Text{}, fmt.Errorf("update text: %w", err)
 	}
 	return doc.toDomain(), nil
 }
 
-func (s *Store) Delete(ctx context.Context, id, userID uuid.UUID) {
+func (s *TextStore) Delete(ctx context.Context, id, userID uuid.UUID) {
 
 }

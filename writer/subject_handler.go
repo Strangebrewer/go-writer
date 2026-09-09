@@ -1,4 +1,4 @@
-package subject
+package writer
 
 import (
 	"encoding/json"
@@ -7,22 +7,21 @@ import (
 	"net/http"
 
 	// "github.com/Strangebrewer/go-writer/middleware"
-	"github.com/Strangebrewer/go-writer/text"
 	"github.com/Strangebrewer/go-writer/utils/extraction"
 	"github.com/go-chi/chi/v5"
 	"github.com/google/uuid"
 )
 
-type Handler struct {
-	store     *Store
-	textStore *text.Store
+type SubjectHandler struct {
+	subjectStore *SubjectStore
+	textStore    *TextStore
 }
 
-func NewHandler(store *Store, textStore *text.Store) *Handler {
-	return &Handler{store: store, textStore: textStore}
+func NewSubjectHandler(subjectStore *SubjectStore, textStore *TextStore) *SubjectHandler {
+	return &SubjectHandler{subjectStore: subjectStore, textStore: textStore}
 }
 
-func (h *Handler) GetOne(w http.ResponseWriter, r *http.Request) {
+func (h *SubjectHandler) GetOne(w http.ResponseWriter, r *http.Request) {
 	userId, err := extraction.UserIDFromRequest(r)
 	if err != nil {
 		http.Error(w, "unauthorized", http.StatusUnauthorized)
@@ -35,9 +34,9 @@ func (h *Handler) GetOne(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	subject, err := h.store.GetByID(r.Context(), id, userId)
+	subject, err := h.subjectStore.GetByID(r.Context(), id, userId)
 	if err != nil {
-		if errors.Is(err, ErrNotFound) {
+		if errors.Is(err, ErrSubjectNotFound) {
 			http.Error(w, "not found", http.StatusNotFound)
 			return
 		}
@@ -58,7 +57,7 @@ func (h *Handler) GetOne(w http.ResponseWriter, r *http.Request) {
 	_ = json.NewEncoder(w).Encode(resp)
 }
 
-func (h *Handler) Create(w http.ResponseWriter, r *http.Request) {
+func (h *SubjectHandler) Create(w http.ResponseWriter, r *http.Request) {
 	userId, err := extraction.UserIDFromRequest(r)
 	if err != nil {
 		http.Error(w, "unauthorized", http.StatusUnauthorized)
@@ -94,7 +93,7 @@ func (h *Handler) Create(w http.ResponseWriter, r *http.Request) {
 	// 	}
 	// }
 
-	created, err := h.store.Create(r.Context(), userId, req, nil)
+	created, err := h.subjectStore.Create(r.Context(), userId, req, nil)
 	if err != nil {
 		slog.Error("create subject", "error", err)
 		http.Error(w, "internal server error", http.StatusInternalServerError)
@@ -106,10 +105,10 @@ func (h *Handler) Create(w http.ResponseWriter, r *http.Request) {
 	_ = json.NewEncoder(w).Encode(created)
 }
 
-func (h *Handler) Update(w http.ResponseWriter, r *http.Request) {
+func (h *SubjectHandler) Update(w http.ResponseWriter, r *http.Request) {
 
 }
 
-func (h *Handler) Delete(w http.ResponseWriter, r *http.Request) {
+func (h *SubjectHandler) Delete(w http.ResponseWriter, r *http.Request) {
 
 }

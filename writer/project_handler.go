@@ -1,4 +1,4 @@
-package project
+package writer
 
 import (
 	"encoding/json"
@@ -6,29 +6,28 @@ import (
 	"log/slog"
 	"net/http"
 
-	"github.com/Strangebrewer/go-writer/subject"
 	"github.com/Strangebrewer/go-writer/utils/extraction"
 	"github.com/go-chi/chi/v5"
 	"github.com/google/uuid"
 )
 
-type Handler struct {
-	store        *Store
-	subjectStore *subject.Store
+type ProjectHandler struct {
+	projectStore *ProjectStore
+	subjectStore *SubjectStore
 }
 
-func NewHandler(store *Store, subjectStore *subject.Store) *Handler {
-	return &Handler{store: store, subjectStore: subjectStore}
+func NewProjectHandler(projectStore *ProjectStore, subjectStore *SubjectStore) *ProjectHandler {
+	return &ProjectHandler{projectStore: projectStore, subjectStore: subjectStore}
 }
 
-func (h *Handler) GetAll(w http.ResponseWriter, r *http.Request) {
+func (h *ProjectHandler) GetAll(w http.ResponseWriter, r *http.Request) {
 	userId, err := extraction.UserIDFromRequest(r)
 	if err != nil {
 		http.Error(w, "unauthorized", http.StatusUnauthorized)
 		return
 	}
 
-	projects, err := h.store.GetAll(r.Context(), userId)
+	projects, err := h.projectStore.GetAll(r.Context(), userId)
 	if err != nil {
 		slog.Error("get projects", "error", err)
 		http.Error(w, "internal server error", http.StatusInternalServerError)
@@ -39,7 +38,7 @@ func (h *Handler) GetAll(w http.ResponseWriter, r *http.Request) {
 	_ = json.NewEncoder(w).Encode(projects)
 }
 
-func (h *Handler) GetOne(w http.ResponseWriter, r *http.Request) {
+func (h *ProjectHandler) GetOne(w http.ResponseWriter, r *http.Request) {
 	userId, err := extraction.UserIDFromRequest(r)
 	if err != nil {
 		http.Error(w, "unauthorized", http.StatusUnauthorized)
@@ -52,9 +51,9 @@ func (h *Handler) GetOne(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	project, err := h.store.GetByID(r.Context(), id, userId)
+	project, err := h.projectStore.GetByID(r.Context(), id, userId)
 	if err != nil {
-		if errors.Is(err, ErrNotFound) {
+		if errors.Is(err, ErrProjectNotFound) {
 			http.Error(w, "not found", http.StatusNotFound)
 			return
 		}
@@ -75,7 +74,7 @@ func (h *Handler) GetOne(w http.ResponseWriter, r *http.Request) {
 	_ = json.NewEncoder(w).Encode(resp)
 }
 
-func (h *Handler) Create(w http.ResponseWriter, r *http.Request) {
+func (h *ProjectHandler) Create(w http.ResponseWriter, r *http.Request) {
 	userId, err := extraction.UserIDFromRequest(r)
 	if err != nil {
 		http.Error(w, "unauthorized", http.StatusUnauthorized)
@@ -106,7 +105,7 @@ func (h *Handler) Create(w http.ResponseWriter, r *http.Request) {
 	// 	}
 	// }
 
-	created, err := h.store.Create(r.Context(), userId, req, nil)
+	created, err := h.projectStore.Create(r.Context(), userId, req, nil)
 	if err != nil {
 		slog.Error("create project", "error", err)
 		http.Error(w, "internal server error", http.StatusInternalServerError)
@@ -118,7 +117,7 @@ func (h *Handler) Create(w http.ResponseWriter, r *http.Request) {
 	_ = json.NewEncoder(w).Encode(created)
 }
 
-func (h *Handler) Update(w http.ResponseWriter, r *http.Request) {
+func (h *ProjectHandler) Update(w http.ResponseWriter, r *http.Request) {
 	id, err := uuid.Parse(chi.URLParam(r, "id"))
 	if err != nil {
 		http.Error(w, "invalid id", http.StatusBadRequest)
@@ -138,9 +137,9 @@ func (h *Handler) Update(w http.ResponseWriter, r *http.Request) {
 	}
 	defer r.Body.Close()
 
-	project, err := h.store.Update(r.Context(), id, userID, req)
+	project, err := h.projectStore.Update(r.Context(), id, userID, req)
 	if err != nil {
-		if errors.Is(err, ErrNotFound) {
+		if errors.Is(err, ErrProjectNotFound) {
 			http.Error(w, "not found", http.StatusNotFound)
 			return
 		}
@@ -153,7 +152,7 @@ func (h *Handler) Update(w http.ResponseWriter, r *http.Request) {
 	_ = json.NewEncoder(w).Encode(project)
 }
 
-func (h *Handler) Delete(w http.ResponseWriter, r *http.Request) {
+func (h *ProjectHandler) Delete(w http.ResponseWriter, r *http.Request) {
 	id, err := uuid.Parse(chi.URLParam(r, "id"))
 	if err != nil {
 		http.Error(w, "invalid id", http.StatusBadRequest)
@@ -166,8 +165,8 @@ func (h *Handler) Delete(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if err := h.store.Delete(r.Context(), id, userID); err != nil {
-		if errors.Is(err, ErrNotFound) {
+	if err := h.projectStore.Delete(r.Context(), id, userID); err != nil {
+		if errors.Is(err, ErrProjectNotFound) {
 			http.Error(w, "not found", http.StatusNotFound)
 			return
 		}

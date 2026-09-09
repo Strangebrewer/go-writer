@@ -1,33 +1,34 @@
-package project
+package writer
 
 import (
 	"time"
-
-	"github.com/Strangebrewer/go-writer/subject"
 )
 
-type Project struct {
+type Subject struct {
 	ID          string     `json:"id"`
 	UserID      string     `json:"userId"`
 	Title       string     `json:"title"`
-	SortOrder   int        `json:"sortOrder"`
 	Description string     `json:"description"`
+	SortOrder   int        `json:"sortOrder"`
+	ProjectID   string     `json:"projectId"`
 	ExpiresAt   *time.Time `json:"expiresAt,omitempty"`
 }
 
-type ProjectResponse struct {
-	Project
-	Subjects []subject.Subject `json:"subjects"`
+type SubjectResponse struct {
+	Subject
+	Texts []Text `json:"texts"`
 }
 
-type CreateProjectRequest struct {
+type CreateSubjectRequest struct {
 	Title       string `json:"title"`
 	Description string `json:"description"`
 	SortOrder   int    `json:"sortOrder"`
+	ProjectID   string `json:"projectId"`
 }
 
-type UpdateProjectRequest struct {
+type UpdateSubjectRequest struct {
 	Title       *string `json:"title"`
 	Description *string `json:"description"`
 	SortOrder   *int    `json:"sortOrder"`
+	ProjectID   *string `json:"projectId"`
 }
