@@ -6,7 +6,7 @@ import (
 	"log/slog"
 	"net/http"
 
-	// "github.com/Strangebrewer/go-writer/middleware"
+	"github.com/Strangebrewer/go-writer/middleware"
 	"github.com/Strangebrewer/go-writer/utils/extraction"
 	"github.com/go-chi/chi/v5"
 	"github.com/google/uuid"
@@ -80,21 +80,27 @@ func (h *SubjectHandler) Create(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// if middleware.IsDemoFromContext(r.Context()) {
-	// 	count, err := h.store.CountByUser(r.Context(), userID)
-	// 	if err != nil {
-	// 		slog.Error("count recruiters", "error", err)
-	// 		http.Error(w, "internal server error", http.StatusInternalServerError)
-	// 		return
-	// 	}
-	// 	if count >= 5 {
-	// 		http.Error(w, "demo recruiter limit reached", http.StatusForbidden)
-	// 		return
-	// 	}
-	// }
+	if middleware.IsDemoFromContext(r.Context()) {
+		count, err := h.subjectStore.CountByUser(r.Context(), userId)
+		if err != nil {
+			slog.Error("count subjects", "error", err)
+			http.Error(w, "internal server error", http.StatusInternalServerError)
+			return
+		}
+		if count >= 5 {
+			http.Error(w, "demo subject limit reached", http.StatusForbidden)
+			return
+		}
+	}
 
-	created, err := h.subjectStore.Create(r.Context(), userId, req, nil)
+	expiresAt := middleware.ExpiresAtFromContext(r.Context())
+
+	created, err := h.subjectStore.Create(r.Context(), userId, req, expiresAt)
 	if err != nil {
+		if errors.Is(err, ErrProjectNotFound) {
+			http.Error(w, "project not found", http.StatusBadRequest)
+			return
+		}
 		slog.Error("create subject", "error", err)
 		http.Error(w, "internal server error", http.StatusInternalServerError)
 		return
@@ -106,9 +112,62 @@ func (h *SubjectHandler) Create(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *SubjectHandler) Update(w http.ResponseWriter, r *http.Request) {
+	id, err := uuid.Parse(chi.URLParam(r, "id"))
+	if err != nil {
+		http.Error(w, "invalid id", http.StatusBadRequest)
+		return
+	}
 
+	userId, err := extraction.UserIDFromRequest(r)
+	if err != nil {
+		http.Error(w, "unauthorized", http.StatusUnauthorized)
+		return
+	}
+
+	var req UpdateSubjectRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		http.Error(w, "invalid request body", http.StatusBadRequest)
+		return
+	}
+	defer r.Body.Close()
+
+	subject, err := h.subjectStore.Update(r.Context(), id, userId, req)
+	if err != nil {
+		if errors.Is(err, ErrSubjectNotFound) {
+			http.Error(w, "not found", http.StatusNotFound)
+			return
+		}
+		slog.Error("update subject", "id", id, "error", err)
+		http.Error(w, "internal server error", http.StatusInternalServerError)
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	_ = json.NewEncoder(w).Encode(subject)
 }
 
 func (h *SubjectHandler) Delete(w http.ResponseWriter, r *http.Request) {
+	id, err := uuid.Parse(chi.URLParam(r, "id"))
+	if err != nil {
+		http.Error(w, "invalid id", http.StatusBadRequest)
+		return
+	}
 
+	userID, err := extraction.UserIDFromRequest(r)
+	if err != nil {
+		http.Error(w, "unauthorized", http.StatusUnauthorized)
+		return
+	}
+
+	if err := h.subjectStore.Delete(r.Context(), id, userID); err != nil {
+		if errors.Is(err, ErrSubjectNotFound) {
+			http.Error(w, "not found", http.StatusNotFound)
+			return
+		}
+		slog.Error("delete subject", "id", id, "error", err)
+		http.Error(w, "internal server error", http.StatusInternalServerError)
+		return
+	}
+
+	w.WriteHeader(http.StatusNoContent)
 }

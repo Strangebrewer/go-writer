@@ -4,7 +4,7 @@
 
 The writing service for the personal-enterprise project. A hierarchy of Projects → Subjects → Texts for organizing long-form writing (books, essays, research papers, blogs — the labels stay generic; the user decides what they mean per project). Backed by MongoDB Atlas. Validates JWTs issued by go-auth — does not issue tokens.
 
-Built from `go-service-template`. Most of the scaffolding is still unadapted from that template — see **Current State** below before assuming anything is wired up.
+Built from `go-service-template`. All three domains are implemented and wired; the cross-cutting concerns other services have (tracing, demo seeding, Pub/Sub) are not. See **Current State** below.
 
 ---
 
@@ -29,16 +29,32 @@ middleware/
   logging.go
   requestid.go
 example/
-  ...                ← leftover template package; remove once a real domain is wired into app/server
-project/             ← empty — domain not started
-subject/             ← empty — domain not started
-text/
-  text_model.go      ← Text, CreateTextRequest, UpdateTextRequest
-  text_store.go      ← GetAllByProject, GetAllBySubject, GetByID, Create, Update
-  text_handler.go    ← stub, not yet implemented
-  text_routes.go     ← stub, not yet implemented
-tracer/              ← tracer client, same pattern as other Go services
+  ...                ← leftover template package; still present, still unused — safe to delete
+utils/
+  dumbwaiter/        ← NewID() — uuid generation
+  extraction/        ← UserIDFromRequest() — pulls the authed user id off the request context
+writer/              ← all three domains, one flat package (see below)
+  project_model.go   project_store.go   project_handler.go   project_routes.go
+  subject_model.go   subject_store.go   subject_handler.go   subject_routes.go
+  text_model.go      text_store.go      text_handler.go      text_routes.go
+tracer/              ← tracer client, same pattern as other Go services (not yet called)
 ```
+
+---
+
+## Why one package
+
+Project, Subject, and Text live in a single flat `writer` package, not three. This deliberately breaks symmetry with the other Go services in this project, which use a package per domain.
+
+The three-package layout doesn't compile. `ProjectResponse` embeds `[]Subject` and `SubjectResponse` embeds `[]Text`, and the subject read wanted its parent `Project` for a deep-linked subject page — parent-to-child and child-to-parent references between the same two packages is an import cycle, which Go forbids outright. The deeper reason is that these three aren't independent domains: they're one aggregate under one root, with a shared lifecycle (the project delete cascade) and no read that's meaningful outside the hierarchy. A package boundary with no dependency boundary behind it is just ceremony, and here the compiler said so.
+
+Consequences of the flattening, all of which are load-bearing:
+
+- **Directory is flat.** A subdirectory in Go is a separate package; nesting `writer/subject/` would recreate the exact cycle. There is nothing between `writer/` and its twelve files.
+- **Filename prefixes are the only grouping.** `subject_store.go`, not `store.go` — the prefix does the work the directory used to.
+- **Identifiers carry the domain.** `ProjectStore` / `SubjectStore` / `TextStore`, `NewSubjectHandler`, `ProjectRoutes`. Bare `Store` and `Handler` would collide three ways.
+- **Sentinels are per domain**: `ErrProjectNotFound`, `ErrSubjectNotFound`, `ErrTextNotFound`. Watch these — they're all the same type in one namespace now, so a store returning the wrong domain's sentinel compiles cleanly and silently turns a 404 into a 500. This has already happened twice.
+- **Encapsulation is convention, not compiler-enforced.** `projectDoc`, `subjectDoc`, and `textDoc` are visible to every file in the package. Keep each doc struct and its `toDomain()` used only by its own store.
 
 ---
 
@@ -61,6 +77,8 @@ So `projectId` is immutable on both `Subject` and `Text` once set. The project d
 
 ## Ordering
 
+> **Status: designed, not implemented — and currently non-functional end to end.** `sortOrder` exists on the `Project` domain type and `projectDoc`. It does **not** exist on `subjectDoc` or `textDoc`, so it is never persisted or read back for subjects and texts even though `Subject`, `Text`, and their create/update requests all declare it. `TextStore.Update` has no branch for it. No list query sorts on it. Everything below is intended design.
+
 Position within a parent is tracked with a **`sortOrder` field on the child document itself** — not an array of child ids on the parent.
 
 - `Text.sortOrder` — position within its `subjectId`
@@ -82,16 +100,18 @@ Position within a parent is tracked with a **`sortOrder` field on the child docu
 
 ## Fetching: List vs Detail
 
+> **Status: design, not implemented.** There is no `TextSummary` type and no `GetSummariesByProject`. `TextStore` exposes `GetAllBySubject` only, returning full `Text` documents including `Content`. Project detail currently returns project + subjects with no texts at all — text cards can't render until this is built.
+
 `Content` is the largest field on a `Text` — full rich-text/formatting data, and it can grow substantially per document. Opening a Project only needs `id`, `title`, `description`, `subjectId`, and `sortOrder` per text (to render subject columns and text cards) — it never needs `content` at that point. Fetching `content` for every text in a project up front would mean shipping a lot of data nothing in that view renders.
 
-- **List view** (`GetSummariesByProject`, replacing today's `GetAllByProject`): returns `[]TextSummary` — a distinct domain type with no `Content` field (`id`, `title`, `description`, `subjectId`, `projectId`, `sortOrder`). Excludes `content` at the MongoDB query level via `options.Find().SetProjection(bson.D{{Key: "content", Value: 0}})`, not just at the response-shaping level — the field never leaves the database.
+- **List view** (`GetSummariesByProject`): returns `[]TextSummary` — a distinct domain type with no `Content` field (`id`, `title`, `description`, `subjectId`, `projectId`, `sortOrder`). Excludes `content` at the MongoDB query level via `options.Find().SetProjection(bson.D{{Key: "content", Value: 0}})`, not just at the response-shaping level — the field never leaves the database.
 - **Detail view** (`GetByID`): returns the full `Text`, including `content`. Called when opening a Subject or Text view for one specific text.
 
 A distinct `TextSummary` type — rather than reusing `Text` with `Content` left blank — avoids ambiguity between "this text has no content" and "content wasn't fetched."
 
 ### Composing parent + children
 
-> **Status: design, not yet implemented.** Revisit this subsection once the pipeline and the subject read actually exist — stage details and field lists below are intended shape, not observed behavior.
+> **Status: partially implemented.** Both composed reads exist and both compose in the handler. Project detail returns project + subjects (no texts yet — see the status note above). Subject detail returns subject + full texts, as designed.
 
 Every "get one" returns that entity plus its children. There is no standalone list endpoint for subjects or texts, because a list of either is only ever meaningful inside its parent — the parent's read already carries it.
 
@@ -101,20 +121,16 @@ Every "get one" returns that entity plus its children. There is no standalone li
 
 Texts are leaves and compose nothing.
 
-**The rule: aggregate when composing more than one level down; compose in the handler when it's one.**
+**Both reads compose in the handler.** `ProjectHandler.GetOne` calls `ProjectStore.GetByID` then `SubjectStore.GetAllByProject`; `SubjectHandler.GetOne` calls `SubjectStore.GetByID` then `TextStore.GetAllBySubject`. Each store decodes its own documents into its own domain types; the handler assembles the response struct.
 
-- **`project` uses a `$lookup` pipeline.** `project.Store` returns the entire detail read in one query, decoding into `projectDetailDoc` → `detailSubjectDoc` → `detailTextDoc`. The embedded `projectDoc` needs `bson:",inline"` — the BSON codec nests embedded structs by default and would otherwise silently decode a zero-valued project. The domain-side `ProjectResponse` needs no equivalent tag, since `encoding/json` promotes embedded fields automatically.
-- **`subject` composes in the handler.** `subject.Store.GetByID` plus `text.Store.GetAllBySubject`, assembled in `subject.Handler`. No new decode structs — each store already decodes its own documents into its own domain types.
+This is the cheaper option on the merits and stays the default. The round-trip saving from a `$lookup` pipeline is unmeasurable at this scale — flat queries with no fan-out, since `Text` carries `projectId` as well as `subjectId`, so a single query can fetch every text summary in a project and Go groups them by `subjectId` in memory.
 
-**Why two approaches instead of one.** Handler composition is the cheaper option on the merits: the round-trip saving from a pipeline is unmeasurable at this scale (three flat queries, no fan-out — `Text` carries `projectId` as well as `subjectId`, so one query gets every text summary in a project and Go groups them by `subjectId`), and it keeps each collection's document shape private to the package that owns it. The pipeline's real cost is that `project` must carry decode structs shadowing shapes `subject` and `text` already own — schema knowledge crossing a package boundary with nothing to enforce it, unlike a method call the compiler checks.
+An earlier version of this document specified a `$lookup` pipeline for the project read, justified by keeping each collection's document shape private to the package that owned it. That argument died with the three-package layout — `projectDoc`, `subjectDoc`, and `textDoc` are now all visible inside `writer`, so a pipeline would no longer need shadow decode structs and no longer costs anything in encapsulation. Nothing currently requires one. If the project detail read ever grows deep enough to want it, these still apply:
 
-That cost is accepted here deliberately, on the deeper of the two reads, so the service demonstrates both techniques and the tradeoff between them. It is not an oversight, and it should not be treated as the pattern to copy into a new domain without the same weighing.
-
-**Pipeline gotchas:**
-
-- **`$lookup` does not preserve order.** Both sub-pipelines need an explicit `$sort` on `sortOrder`. This will appear to work without it in early testing, whenever insertion order happens to match intended order.
+- **`$lookup` does not preserve order.** Every sub-pipeline needs an explicit `$sort` on `sortOrder`. It will appear to work without one whenever insertion order happens to match intended order.
 - **Scope every `$match` on `userId`, not just the foreign key.** A sub-pipeline matching only `projectId`/`subjectId` returns other users' rows. Worth an integration test pinned to a second user's data specifically.
-- Cross-collection **writes** stay in the owning package regardless. The only exception is `project.Store.Delete`, whose cascade issues raw `DeleteMany` calls against `subjects` and `texts` — filter-only, no decoding, so its entire coupling is a collection name and two field names.
+
+**Cross-collection access is concentrated in the stores.** `ProjectStore` holds `subjects` and `texts` handles for its delete cascade; `SubjectStore` holds `texts` (cascade) and `projects` (create-time FK check); `TextStore` holds `subjects` (create-time FK check). Handlers never touch a collection they don't own.
 
 ---
 
@@ -132,19 +148,31 @@ MongoDB Atlas. Collections: `projects`, `subjects`, `texts`.
 
 Same as other Go services: a private `*Doc` struct with `bson` tags, a domain struct in `_model.go` with plain Go types, and `toDomain()` to convert. IDs stored as strings (`uuid.UUID.String()`), parsed back on read.
 
+Each store's constructor takes the whole `*mongo.Database`, so a store that needs a sibling collection just takes another handle — no signature changes anywhere upstream. See the cross-collection note under **Composing parent + children** for who holds what.
+
+### Delete cascades and referential integrity
+
+No DB-level enforcement; both directions are application-layer.
+
+- **Delete project** — `DeleteMany` on texts and subjects matching `{projectId, userId}`, then the project itself. Safe only because `projectId` is immutable (see **Moves are text-level only**).
+- **Delete subject** — `DeleteMany` on texts matching `{subjectId, userId}`, then the subject.
+- **Create subject / create text** — the store `CountDocuments` on `{_id, userId}` of the named parent before inserting, returning `ErrProjectNotFound` / `ErrSubjectNotFound` if it's absent or owned by someone else. The handler maps that to a `400`. Without this the parent id is an unchecked free-form string in the request body, and orphans are unreachable by any cascade. Note this applies to every caller, so anything seeding data has to create parents before children.
+
 ---
 
 ## Patterns
 
 ### Partial updates
 
-`text.Update` uses pointer fields (`*string`) on `UpdateTextRequest` and appends to the `$set` document only for fields that are non-nil — omitted fields are left untouched rather than overwritten. This is an intentional exception to the project's default full-object-replacement update pattern (see root `CLAUDE.md`): `Title`, `Description`, and `Content` can each change independently and frequently from the same editor view, and forcing a full-object PUT would mean resending the whole document (including potentially large `Content`) for a single-field change.
+All three domains use pointer fields on their update requests and append to the `$set` document only for fields that are non-nil — omitted fields are left untouched rather than overwritten. This is an intentional exception to the project's default full-object-replacement update pattern (see root `CLAUDE.md`): `Title`, `Description`, and `Content` can each change independently and frequently from the same editor view, and forcing a full-object PUT would mean resending the whole document (including potentially large `Content`) for a single-field change.
 
-`SubjectID` and `ProjectID` follow the same pointer pattern on `UpdateTextRequest`, but moving a text to a new subject is expected to become its own operation once the `subject` domain exists (recomputing `sortOrder` in the destination subject at the same time) rather than going through the general update.
+**The update document must be wrapped in `$set`.** `FindOneAndUpdate(ctx, filter, bson.D{{Key: "$set", Value: update}}, ...)` — passing the bare accumulated `bson.D` makes MongoDB reject the whole operation for having no atomic operator, and every update on that domain returns a 500. This has already been shipped broken twice.
+
+`UpdateTextRequest.SubjectID` moves a text between subjects. That is expected to become its own operation eventually (recomputing `sortOrder` in the destination subject at the same time) rather than going through the general update. There is no `ProjectID` on any update request — `projectId` is immutable by design.
 
 ### Domain structure
 
-Same four-file pattern as other services: `<domain>_model.go`, `_store.go`, `_handler.go`, `_routes.go`.
+Four files per domain — `<domain>_model.go`, `_store.go`, `_handler.go`, `_routes.go` — same as other services, but all twelve sit in the one `writer` package rather than in a directory per domain. See **Why one package**.
 
 ---
 
@@ -165,10 +193,25 @@ Copy `.env.example` to `.env.local` for local dev. Never commit `.env.local`.
 
 ## Current State
 
-This service is mid-scaffold — most of it is still unadapted `go-service-template` boilerplate:
+### Working
 
-- `text` domain: `text_model.go` and `text_store.go` are implemented (`GetAllByProject`, `GetAllBySubject`, `GetByID`, `Create`, `Update`). `text_handler.go` and `text_routes.go` are empty stubs. `Text.Delete` is stubbed with a comment referencing removing the id from a subject's `textOrder` array — that array-based approach is superseded by the `sortOrder`-on-child design above and needs updating once implemented.
-- `sortOrder` field does **not** exist on the `Text` model yet — the scheme above is the intended design, not yet implemented.
-- `GetAllByProject` currently returns the full `Text` (including `Content`) with no projection — the `TextSummary`/projection split in **Fetching: List vs Detail** is the intended design, not yet implemented.
-- `subject` and `project` domains: not started (empty directories).
-- `app/app.go`, `server/routes.go`, and `cmd/server/main.go` still reference the template's `example` package and `go-service-template` module path — not yet adapted to this service's real domains.
+- All three domains have model, store, handler, and routes. Mounted at `/projects`, `/subjects`, `/texts` in `server/routes.go`, every route behind `authMiddleware`.
+- Full CRUD on projects and texts. Subjects have everything but a list endpoint, by design — subjects are only ever read through their project.
+- Every store query is scoped on `userId` alongside `_id`.
+- Delete cascades and create-time FK validation (see **Delete cascades and referential integrity**).
+- Demo handling: per-domain create limits (5 projects, 5 subjects, 20 texts) gated on `middleware.IsDemoFromContext`, and `expiresAt` populated from `middleware.ExpiresAtFromContext` on all three creates so the sparse TTL indexes collect demo records. Real users get `nil` and their records never expire.
+- `app/app.go`, `server/routes.go`, and `cmd/server/main.go` are fully adapted — no template references left in the wiring.
+
+### Not done
+
+- **Tracing.** A `*tracer.Client` is threaded through all three `Routes` functions and never called. No spans are emitted. The `TRACER_SERVICE_*` env vars are declared but unused.
+- **Demo seeding / Pub/Sub.** No subscriber, no `demo-registered` handler. Unlike the other services, a new demo account gets an empty writer.
+- **`sortOrder`** — see the status note under **Ordering**. Nothing sorts; the field isn't persisted for subjects or texts.
+- **`TextSummary` / projection** — see the status note under **Fetching: List vs Detail**. Project detail returns no texts, so the board's text cards have no data source yet.
+- **Tests.** None, of either kind.
+- **Deployment.** Not deployed to dev or prod. No Cloud Run service, no WIF binding.
+- **`example/`** — the template package is still on disk and referenced by nothing but its own test file.
+
+### Watch for
+
+The three `Err*NotFound` sentinels share one namespace and one type. Returning the wrong domain's sentinel compiles silently and converts a 404 into a 500 — it has happened in `SubjectStore.Update` (returned `ErrTextNotFound`) and `TextStore.Delete` (returned `ErrSubjectNotFound`), both since fixed. Check the sentinel matches the store whenever you touch one.

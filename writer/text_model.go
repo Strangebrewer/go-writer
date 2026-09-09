@@ -31,5 +31,4 @@ type UpdateTextRequest struct {
 	Content     *string `json:"content"`
 	SortOrder   *int    `json:"sortOrder"`
 	SubjectID   *string `json:"subjectId"`
-	ProjectID   *string `json:"projectId"`
 }

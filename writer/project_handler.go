@@ -6,6 +6,7 @@ import (
 	"log/slog"
 	"net/http"
 
+	"github.com/Strangebrewer/go-writer/middleware"
 	"github.com/Strangebrewer/go-writer/utils/extraction"
 	"github.com/go-chi/chi/v5"
 	"github.com/google/uuid"
@@ -92,20 +93,22 @@ func (h *ProjectHandler) Create(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// if middleware.IsDemoFromContext(r.Context()) {
-	// 	count, err := h.store.CountByUser(r.Context(), userID)
-	// 	if err != nil {
-	// 		slog.Error("count recruiters", "error", err)
-	// 		http.Error(w, "internal server error", http.StatusInternalServerError)
-	// 		return
-	// 	}
-	// 	if count >= 5 {
-	// 		http.Error(w, "demo recruiter limit reached", http.StatusForbidden)
-	// 		return
-	// 	}
-	// }
+	if middleware.IsDemoFromContext(r.Context()) {
+		count, err := h.projectStore.CountByUser(r.Context(), userId)
+		if err != nil {
+			slog.Error("count projects", "error", err)
+			http.Error(w, "internal server error", http.StatusInternalServerError)
+			return
+		}
+		if count >= 5 {
+			http.Error(w, "demo project limit reached", http.StatusForbidden)
+			return
+		}
+	}
 
-	created, err := h.projectStore.Create(r.Context(), userId, req, nil)
+	expiresAt := middleware.ExpiresAtFromContext(r.Context())
+
+	created, err := h.projectStore.Create(r.Context(), userId, req, expiresAt)
 	if err != nil {
 		slog.Error("create project", "error", err)
 		http.Error(w, "internal server error", http.StatusInternalServerError)

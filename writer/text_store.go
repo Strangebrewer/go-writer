@@ -42,12 +42,14 @@ func (d textDoc) toDomain() Text {
 }
 
 type TextStore struct {
-	col *mongo.Collection
+	col      *mongo.Collection
+	subjects *mongo.Collection
 }
 
 func NewTextStore(db *mongo.Database) *TextStore {
 	return &TextStore{
-		col: db.Collection("texts"),
+		col:      db.Collection("texts"),
+		subjects: db.Collection("subjects"),
 	}
 }
 
@@ -75,7 +77,10 @@ func (s *TextStore) GetAllBySubject(ctx context.Context, userID, subjectID uuid.
 
 func (s *TextStore) GetByID(ctx context.Context, id, userId uuid.UUID) (Text, error) {
 	var doc textDoc
-	err := s.col.FindOne(ctx, bson.D{{Key: "_id", Value: id.String()}}).Decode(&doc)
+	err := s.col.FindOne(ctx, bson.D{
+		{Key: "_id", Value: id.String()},
+		{Key: "userId", Value: userId.String()},
+	}).Decode(&doc)
 	if err != nil {
 		if errors.Is(err, mongo.ErrNoDocuments) {
 			return Text{}, ErrTextNotFound
@@ -89,6 +94,17 @@ func (s *TextStore) Create(ctx context.Context, userID uuid.UUID, req CreateText
 	id, err := dumbwaiter.NewID()
 	if err != nil {
 		return Text{}, fmt.Errorf("generate id: %w", err)
+	}
+
+	subjects, err := s.subjects.CountDocuments(ctx, bson.D{
+		{Key: "_id", Value: req.SubjectID},
+		{Key: "userId", Value: userID.String()},
+	})
+	if err != nil {
+		return Text{}, fmt.Errorf("verify subject: %w", err)
+	}
+	if subjects == 0 {
+		return Text{}, ErrSubjectNotFound
 	}
 
 	now := time.Now().UTC()
@@ -111,6 +127,14 @@ func (s *TextStore) Create(ctx context.Context, userID uuid.UUID, req CreateText
 	return doc.toDomain(), nil
 }
 
+func (s *TextStore) CountByUser(ctx context.Context, userID uuid.UUID) (int64, error) {
+	count, err := s.col.CountDocuments(ctx, bson.D{{Key: "userId", Value: userID.String()}})
+	if err != nil {
+		return 0, fmt.Errorf("count texts: %w", err)
+	}
+	return count, nil
+}
+
 func (s *TextStore) Update(ctx context.Context, id, userID uuid.UUID, req UpdateTextRequest) (Text, error) {
 	filter := bson.D{{Key: "_id", Value: id.String()}, {Key: "userId", Value: userID.String()}}
 	update := bson.D{{Key: "updatedAt", Value: time.Now().UTC()}}
@@ -126,9 +150,6 @@ func (s *TextStore) Update(ctx context.Context, id, userID uuid.UUID, req Update
 	if req.SubjectID != nil {
 		update = append(update, bson.E{Key: "subjectId", Value: req.SubjectID})
 	}
-	if req.ProjectID != nil {
-		update = append(update, bson.E{Key: "projectId", Value: req.ProjectID})
-	}
 
 	var doc textDoc
 	err := s.col.FindOneAndUpdate(ctx, filter, bson.D{{Key: "$set", Value: update}},
@@ -143,6 +164,17 @@ func (s *TextStore) Update(ctx context.Context, id, userID uuid.UUID, req Update
 	return doc.toDomain(), nil
 }
 
-func (s *TextStore) Delete(ctx context.Context, id, userID uuid.UUID) {
+func (s *TextStore) Delete(ctx context.Context, id, userID uuid.UUID) error {
+	result, err := s.col.DeleteOne(ctx, bson.D{
+		{Key: "_id", Value: id.String()},
+		{Key: "userId", Value: userID.String()},
+	})
+	if err != nil {
+		return fmt.Errorf("delete text: %w", err)
+	}
+	if result.DeletedCount == 0 {
+		return ErrTextNotFound
+	}
 
+	return nil
 }

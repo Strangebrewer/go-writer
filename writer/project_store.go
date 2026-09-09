@@ -112,6 +112,14 @@ func (s *ProjectStore) Create(ctx context.Context, userId uuid.UUID, req CreateP
 	return doc.toDomain(), nil
 }
 
+func (s *ProjectStore) CountByUser(ctx context.Context, userID uuid.UUID) (int64, error) {
+	count, err := s.col.CountDocuments(ctx, bson.D{{Key: "userId", Value: userID.String()}})
+	if err != nil {
+		return 0, fmt.Errorf("count projects: %w", err)
+	}
+	return count, nil
+}
+
 func (s *ProjectStore) Update(ctx context.Context, id, userID uuid.UUID, req UpdateProjectRequest) (Project, error) {
 	filter := bson.D{
 		{Key: "_id", Value: id.String()},
@@ -130,7 +138,7 @@ func (s *ProjectStore) Update(ctx context.Context, id, userID uuid.UUID, req Upd
 	}
 
 	var doc projectDoc
-	err := s.col.FindOneAndUpdate(ctx, filter, update,
+	err := s.col.FindOneAndUpdate(ctx, filter, bson.D{{Key: "$set", Value: update}},
 		options.FindOneAndUpdate().SetReturnDocument(options.After),
 	).Decode(&doc)
 	if err != nil {
