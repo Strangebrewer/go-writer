@@ -21,6 +21,7 @@ type textDoc struct {
 	Title       string     `bson:"title"`
 	Description string     `bson:"description"`
 	Content     string     `bson:"content"`
+	SortOrder   int        `bson:"sortOrder"`
 	SubjectID   string     `bson:"subjectId"`
 	ProjectID   string     `bson:"projectId"`
 	ExpiresAt   *time.Time `bson:"expiresAt,omitempty"`
@@ -35,6 +36,7 @@ func (d textDoc) toDomain() Text {
 		Title:       d.Title,
 		Description: d.Description,
 		Content:     d.Content,
+		SortOrder:   d.SortOrder,
 		SubjectID:   d.SubjectID,
 		ProjectID:   d.ProjectID,
 		ExpiresAt:   d.ExpiresAt,
@@ -96,15 +98,18 @@ func (s *TextStore) Create(ctx context.Context, userID uuid.UUID, req CreateText
 		return Text{}, fmt.Errorf("generate id: %w", err)
 	}
 
-	subjects, err := s.subjects.CountDocuments(ctx, bson.D{
+	var subject subjectDoc
+	filter := bson.D{
 		{Key: "_id", Value: req.SubjectID},
 		{Key: "userId", Value: userID.String()},
-	})
-	if err != nil {
-		return Text{}, fmt.Errorf("verify subject: %w", err)
 	}
-	if subjects == 0 {
-		return Text{}, ErrSubjectNotFound
+	opts := options.FindOne().SetProjection(bson.D{{Key: "_id", Value: 1}})
+	err = s.subjects.FindOne(ctx, filter, opts).Decode(&subject)
+	if err != nil {
+		if errors.Is(err, mongo.ErrNoDocuments) {
+			return Text{}, ErrSubjectNotFound
+		}
+		return Text{}, fmt.Errorf("verify subject: %w", err)
 	}
 
 	now := time.Now().UTC()
@@ -114,6 +119,7 @@ func (s *TextStore) Create(ctx context.Context, userID uuid.UUID, req CreateText
 		Title:       req.Title,
 		Description: req.Description,
 		Content:     req.Content,
+		SortOrder:   req.SortOrder,
 		SubjectID:   req.SubjectID,
 		ProjectID:   req.ProjectID,
 		CreatedAt:   now,
@@ -146,6 +152,9 @@ func (s *TextStore) Update(ctx context.Context, id, userID uuid.UUID, req Update
 	}
 	if req.Content != nil {
 		update = append(update, bson.E{Key: "content", Value: req.Content})
+	}
+	if req.SortOrder != nil {
+		update = append(update, bson.E{Key: "sortOrder", Value: req.SortOrder})
 	}
 	if req.SubjectID != nil {
 		update = append(update, bson.E{Key: "subjectId", Value: req.SubjectID})

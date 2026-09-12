@@ -1,5 +1,18 @@
 # go-writer — Claude Context
 
+## Who Writes The Code
+
+The user writes the code in this repo. This is deliberate — the goal is hands-on
+experience building a Go service in this project, not a finished service quickly.
+
+Claude's role here is advisory by default: explain, plan, review, answer questions,
+locate the relevant file and name the concern. Do not write or edit code in this repo
+unless explicitly asked to for a specific piece of work. There will occasionally be
+exceptions; they will be stated directly when they apply, and an exception covers only
+the thing named — it does not carry forward to the next task.
+
+---
+
 ## What This Service Is
 
 The writing service for the personal-enterprise project. A hierarchy of Projects → Subjects → Texts for organizing long-form writing (books, essays, research papers, blogs — the labels stay generic; the user decides what they mean per project). Backed by MongoDB Atlas. Validates JWTs issued by go-auth — does not issue tokens.
@@ -91,8 +104,8 @@ Position within a parent is tracked with a **`sortOrder` field on the child docu
 **Values are plain integers, not floats.** No midpoint averaging.
 
 - **Create**: `sortOrder` = current max `sortOrder` among siblings + `10,000`
-- **Insert between two siblings** (drag-and-drop drop): `sortOrder` = the `sortOrder` value of the item immediately before the drop position, + `1`
-- This consumes a gap linearly from one side. A `10,000`-wide gap between two siblings allows up to `9,999` sequential inserts into it before it's exhausted — far beyond what a human editing one subject's contents will ever produce.
+- **Insert between two siblings** (drag-and-drop drop): the frontend already holds the full ordered sibling list to render it, so a drop event inherently identifies both neighbors — it sends both their `sortOrder` values with the move request, not just the one before. Backend computes `prev.sortOrder + 1`; if that value would reach or exceed `next.sortOrder` (gap exhausted), rebalance that parent's children first and insert against the freshly-spaced values instead of writing a colliding value.
+- This still consumes a gap linearly from one side — the neighbor check only changes what happens once a gap is exhausted, from "silently produces a duplicate `sortOrder`" to "triggers a rebalance." A `10,000`-wide gap still allows up to `9,999` sequential inserts before exhaustion — far beyond what a human editing one subject's contents will ever produce — so this is a correctness guarantee against a case that isn't expected to actually fire, not a performance-sensitive path.
 - **Rebalance** (only if a gap is ever actually exhausted): refetch that parent's children sorted by `sortOrder`, reassign clean spaced values (`10000, 20000, 30000, ...`) in one bulk write scoped to just that parent's children.
 - `sortOrder` values are scoped per parent, so magnitude never grows with total user count or total documents in the collection — only with how many siblings one specific parent has.
 

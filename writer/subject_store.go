@@ -21,6 +21,7 @@ type subjectDoc struct {
 	UserID      string     `bson:"userId"`
 	Title       string     `bson:"title"`
 	Description string     `bson:"description"`
+	SortOrder   int        `bson:"sortOrder"`
 	ProjectID   string     `bson:"projectId"`
 	ExpiresAt   *time.Time `bson:"expiresAt,omitempty"`
 	CreatedAt   time.Time  `bson:"createdAt"`
@@ -33,6 +34,7 @@ func (d subjectDoc) toDomain() Subject {
 		UserID:      d.UserID,
 		Title:       d.Title,
 		Description: d.Description,
+		SortOrder:   d.SortOrder,
 		ProjectID:   d.ProjectID,
 		ExpiresAt:   d.ExpiresAt,
 	}
@@ -113,6 +115,7 @@ func (s *SubjectStore) Create(ctx context.Context, userID uuid.UUID, req CreateS
 		UserID:      userID.String(),
 		Title:       req.Title,
 		Description: req.Description,
+		SortOrder:   req.SortOrder,
 		ProjectID:   req.ProjectID,
 		ExpiresAt:   expiresAt,
 		CreatedAt:   now,
